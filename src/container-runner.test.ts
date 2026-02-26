@@ -14,7 +14,13 @@ vi.mock('./config.js', () => ({
   DATA_DIR: '/tmp/nanoclaw-test-data',
   GROUPS_DIR: '/tmp/nanoclaw-test-groups',
   IDLE_TIMEOUT: 1800000, // 30min
+  IS_RAILWAY: false,
   TIMEZONE: 'America/Los_Angeles',
+}));
+
+// Mock railway-runner (not used in these tests)
+vi.mock('./railway-runner.js', () => ({
+  runRailwayAgent: vi.fn(),
 }));
 
 // Mock logger

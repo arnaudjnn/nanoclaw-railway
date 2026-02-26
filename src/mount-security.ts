@@ -11,7 +11,7 @@ import os from 'os';
 import path from 'path';
 import pino from 'pino';
 
-import { MOUNT_ALLOWLIST_PATH } from './config.js';
+import { IS_RAILWAY, MOUNT_ALLOWLIST_PATH } from './config.js';
 import { AdditionalMount, AllowedRoot, MountAllowlist } from './types.js';
 
 const logger = pino({
@@ -342,6 +342,8 @@ export function validateAdditionalMounts(
   containerPath: string;
   readonly: boolean;
 }> {
+  if (IS_RAILWAY) return []; // No Docker mounts on Railway
+
   const validatedMounts: Array<{
     hostPath: string;
     containerPath: string;

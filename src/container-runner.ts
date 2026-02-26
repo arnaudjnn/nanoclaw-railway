@@ -13,6 +13,7 @@ import {
   DATA_DIR,
   GROUPS_DIR,
   IDLE_TIMEOUT,
+  IS_RAILWAY,
   TIMEZONE,
 } from './config.js';
 import { readEnvFile } from './env.js';
@@ -24,6 +25,7 @@ import {
   stopContainer,
 } from './container-runtime.js';
 import { validateAdditionalMounts } from './mount-security.js';
+import { runRailwayAgent } from './railway-runner.js';
 import { RegisteredGroup } from './types.js';
 
 // Sentinel markers for robust output parsing (must match agent-runner)
@@ -203,8 +205,13 @@ function buildVolumeMounts(
  * Read allowed secrets from .env for passing to the container via stdin.
  * Secrets are never written to disk or mounted as files.
  */
-function readSecrets(): Record<string, string> {
-  return readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
+export function readSecrets(): Record<string, string> {
+  const fromFile = readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
+  // Fallback to process.env for Railway (secrets set as env vars, no .env file)
+  for (const key of ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']) {
+    if (!fromFile[key] && process.env[key]) fromFile[key] = process.env[key]!;
+  }
+  return fromFile;
 }
 
 function buildContainerArgs(
@@ -249,6 +256,10 @@ export async function runContainerAgent(
 
   const groupDir = resolveGroupFolderPath(group.folder);
   fs.mkdirSync(groupDir, { recursive: true });
+
+  if (IS_RAILWAY) {
+    return runRailwayAgent(group, input, onProcess, onOutput);
+  }
 
   const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');

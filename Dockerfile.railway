@@ -1,0 +1,80 @@
+# NanoClaw Railway Deployment
+# Multi-stage build: agent-runner + host orchestrator in a single image
+
+# Stage 1: Build agent-runner
+FROM node:22-slim AS agent-builder
+
+WORKDIR /build/agent-runner
+COPY container/agent-runner/package*.json ./
+RUN npm install
+COPY container/agent-runner/ ./
+RUN npm run build
+
+# Stage 2: Build host orchestrator
+FROM node:22-slim AS host-builder
+
+WORKDIR /build/host
+COPY package*.json ./
+RUN npm install
+COPY tsconfig.json ./
+COPY src/ ./src/
+RUN npm run build
+
+# Stage 3: Final image
+FROM node:22-slim
+
+# Install system dependencies for Chromium (used by agent-browser)
+RUN apt-get update && apt-get install -y \
+    chromium \
+    fonts-liberation \
+    fonts-noto-color-emoji \
+    libgbm1 \
+    libnss3 \
+    libatk-bridge2.0-0 \
+    libgtk-3-0 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libasound2 \
+    libpangocairo-1.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxshmfence1 \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Chromium path for agent-browser
+ENV AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+
+# Install agent-browser and claude-code globally
+RUN npm install -g agent-browser @anthropic-ai/claude-code
+
+# Copy agent-runner build output
+COPY --from=agent-builder /build/agent-runner/dist /agent-runner-dist
+COPY --from=agent-builder /build/agent-runner/node_modules /agent-runner-dist/node_modules
+COPY --from=agent-builder /build/agent-runner/package.json /agent-runner-dist/package.json
+
+# Copy host orchestrator
+WORKDIR /app
+COPY --from=host-builder /build/host/dist ./dist/
+COPY --from=host-builder /build/host/node_modules ./node_modules/
+COPY --from=host-builder /build/host/package.json ./
+
+# Copy runtime files needed by the host
+COPY container/skills/ ./container/skills/
+COPY setup/ ./setup/
+COPY CLAUDE.md ./
+
+# Set agent-runner path for railway-runner.ts
+ENV AGENT_RUNNER_PATH=/agent-runner-dist/index.js
+
+# Default volume mount path (Railway volumes)
+ENV RAILWAY_VOLUME_MOUNT_PATH=/data
+
+# Create data directories on the volume
+RUN mkdir -p /data/store /data/groups /data/data
+
+CMD ["node", "dist/index.js"]
