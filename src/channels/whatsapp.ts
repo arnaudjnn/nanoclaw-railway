@@ -14,6 +14,7 @@ import makeWASocket, {
 import {
   ASSISTANT_HAS_OWN_NUMBER,
   ASSISTANT_NAME,
+  IS_RAILWAY,
   STORE_DIR,
 } from '../config.js';
 import { getLastGroupSync, setLastGroupSync, updateChatName } from '../db.js';
@@ -79,10 +80,33 @@ export class WhatsAppChannel implements Channel {
       browser: Browsers.macOS('Chrome'),
     });
 
+    // Railway auto-pairing: request pairing code when WHATSAPP_PHONE is set
+    const whatsappPhone = process.env.WHATSAPP_PHONE;
+    if (IS_RAILWAY && whatsappPhone && !state.creds.registered) {
+      setTimeout(async () => {
+        try {
+          // Strip leading + for Baileys
+          const phone = whatsappPhone.replace(/^\+/, '');
+          const code = await this.sock.requestPairingCode(phone);
+          logger.info(
+            { code },
+            `WhatsApp pairing code: ${code} — enter this in WhatsApp > Linked Devices > Link with phone number`,
+          );
+        } catch (err) {
+          logger.error({ err }, 'Failed to request pairing code');
+        }
+      }, 3000);
+    }
+
     this.sock.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
+        // On Railway, don't exit — pairing code was already requested above
+        if (IS_RAILWAY) {
+          logger.info('QR received, waiting for pairing code authentication...');
+          return;
+        }
         const msg =
           'WhatsApp authentication required. Run /setup in Claude Code.';
         logger.error(msg);
