@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 
 import {
+  ASSISTANT_NAME,
   CONTAINER_MAX_OUTPUT_SIZE,
   CONTAINER_TIMEOUT,
   DATA_DIR,
@@ -39,6 +40,25 @@ function prepareWorkspace(
 } {
   const groupDir = resolveGroupFolderPath(group.folder);
   fs.mkdirSync(groupDir, { recursive: true });
+
+  // Sync CLAUDE.md template from image to volume if missing
+  // On Railway, templates live at /app/groups/ but the volume is at /data/groups/
+  const templateGroupsDir = path.join(process.cwd(), 'groups');
+  for (const folder of [group.folder, 'global']) {
+    const targetDir = path.join(GROUPS_DIR, folder);
+    const targetMd = path.join(targetDir, 'CLAUDE.md');
+    const templateMd = path.join(templateGroupsDir, folder, 'CLAUDE.md');
+    if (!fs.existsSync(targetMd) && fs.existsSync(templateMd)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+      let content = fs.readFileSync(templateMd, 'utf-8');
+      if (ASSISTANT_NAME !== 'Andy') {
+        content = content.replace(/^# Andy$/m, `# ${ASSISTANT_NAME}`);
+        content = content.replace(/You are Andy/g, `You are ${ASSISTANT_NAME}`);
+      }
+      fs.writeFileSync(targetMd, content);
+      logger.info({ folder, targetMd }, 'Synced CLAUDE.md template to volume');
+    }
+  }
 
   // Global memory directory (for non-main groups)
   let globalDir: string | undefined;
