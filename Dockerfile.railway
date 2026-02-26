@@ -66,6 +66,7 @@ COPY --from=host-builder /build/host/package.json ./
 
 # Copy runtime files needed by the host
 COPY container/skills/ ./container/skills/
+COPY groups/ ./groups/
 COPY setup/ ./setup/
 COPY CLAUDE.md ./
 
