@@ -1,27 +1,26 @@
 # Deploy and Host NanoClaw on Railway
 
-NanoClaw is a personal AI assistant powered by Claude that connects to WhatsApp (and other channels). It runs Claude Agent SDK in isolated processes, giving each group its own memory, skills, and tools - including web browsing, file management, and scheduled tasks.
+NanoClaw is a personal AI assistant powered by Claude that connects to messaging channels (WhatsApp, Telegram, Slack, Discord). It runs Claude Agent SDK in isolated processes, giving each group its own memory, skills, and tools - including web browsing, file management, and scheduled tasks.
 
 ## About Hosting NanoClaw
 
-Deploying NanoClaw on Railway involves running a single Node.js service that connects to WhatsApp via the Baileys library and spawns Claude Agent SDK processes for each incoming message. A persistent volume stores WhatsApp authentication state, SQLite databases, group memory, and conversation history. The service uses a multi-stage Docker build that bundles Chromium (for web browsing), the Claude Code CLI, and the agent-runner into one image. WhatsApp authentication is handled via pairing code - no QR scanning required.
+Deploying NanoClaw on Railway involves running a single Node.js service that spawns Claude Agent SDK processes for each incoming message. A persistent volume stores authentication state, SQLite databases, group memory, and conversation history. The service uses a multi-stage Docker build that bundles Chromium (for web browsing), the Claude Code CLI, and the agent-runner into one image. The service starts channel-agnostic -use the `/setup` skill in Claude Code to configure your API key, choose a messaging channel, and connect.
 
 ## Common Use Cases
 
-- Personal AI assistant accessible from WhatsApp: ask questions, search the web, browse pages, and manage tasks from your phone
-- Group-aware assistant that maintains separate memory and context per WhatsApp group, with customizable triggers and behavior
+- Personal AI assistant accessible from your phone or desktop: ask questions, search the web, browse pages, and manage tasks
+- Group-aware assistant that maintains separate memory and context per chat group, with customizable triggers and behavior
 - Scheduled task automation with recurring prompts (daily summaries, reminders, monitoring) running on cron schedules
 
 ## Dependencies for NanoClaw Hosting
 
 - An Anthropic API key (`ANTHROPIC_API_KEY`)
-- A WhatsApp account with a phone number that can receive SMS for initial verification (`WHATSAPP_PHONE`)
+- NanoClaw is channel-agnostic -connect WhatsApp, Telegram, Slack, or Discord via the `/setup` skill
 
 ### Deployment Dependencies
 
 - [NanoClaw GitHub Repository](https://github.com/qwibitai/nanoclaw)
 - [Anthropic API](https://console.anthropic.com/) for Claude access
-- [WhatsApp](https://www.whatsapp.com/) account (regular or Business)
 
 ### Implementation Details
 
@@ -29,14 +28,13 @@ NanoClaw requires these Railway environment variables:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Yes | Your Anthropic API key |
-| `WHATSAPP_PHONE` | Yes | Phone number with country code (e.g. `+14155551234`) |
+| `ANTHROPIC_API_KEY` | Yes | API key for Claude model access |
 | `ASSISTANT_NAME` | No | Bot display name (default: `Andy`) |
-| `TZ` | No | Timezone (default: `UTC`) |
+| `TZ` | No | Timezone for scheduled tasks and log timestamps (default: `UTC`) |
 
-A Railway volume must be mounted at `/data` for persistent storage (WhatsApp auth, SQLite, group files).
+A Railway volume must be mounted at `/data` for persistent storage (auth state, SQLite, group files).
 
-After deployment, the service logs a WhatsApp pairing code. Enter it in WhatsApp > Linked Devices > Link with phone number to connect. Then register your main group via the bot's admin interface.
+After deployment, run `/setup` in Claude Code to configure your API key, choose a messaging channel, and connect.
 
 ## Differences from the Local (Docker) Setup
 
