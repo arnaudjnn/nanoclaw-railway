@@ -477,9 +477,13 @@ async function main(): Promise<void> {
   };
 
   // Create and connect channels
-  // On Railway, only connect WhatsApp if auth exists (channel-agnostic startup)
+  // On Railway, only connect WhatsApp if auth exists or WHATSAPP_PHONE is set (for initial pairing)
   const authDir = path.join(STORE_DIR, 'auth');
-  if (!IS_RAILWAY || fs.existsSync(path.join(authDir, 'creds.json'))) {
+  if (
+    !IS_RAILWAY ||
+    fs.existsSync(path.join(authDir, 'creds.json')) ||
+    process.env.WHATSAPP_PHONE
+  ) {
     whatsapp = new WhatsAppChannel(channelOpts);
     channels.push(whatsapp);
     await whatsapp.connect();
