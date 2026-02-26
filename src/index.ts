@@ -524,6 +524,22 @@ async function main(): Promise<void> {
   });
   queue.setProcessMessagesFn(processGroupMessages);
   recoverPendingMessages();
+
+  // Log available groups periodically when none are registered (helps with initial setup)
+  if (IS_RAILWAY && Object.keys(registeredGroups).length === 0) {
+    const logAvailable = () => {
+      const chats = getAllChats().filter((c) => c.is_group);
+      if (chats.length > 0) {
+        logger.info(
+          { groups: chats.map((c) => ({ jid: c.jid, name: c.name })) },
+          'Available groups (none registered yet)',
+        );
+      }
+    };
+    setTimeout(logAvailable, 30_000);
+    setTimeout(logAvailable, 90_000);
+  }
+
   startMessageLoop().catch((err) => {
     logger.fatal({ err }, 'Message loop crashed unexpectedly');
     process.exit(1);
