@@ -4,8 +4,10 @@ import path from 'path';
 import {
   ASSISTANT_NAME,
   IDLE_TIMEOUT,
+  IS_RAILWAY,
   MAIN_GROUP_FOLDER,
   POLL_INTERVAL,
+  STORE_DIR,
   TRIGGER_PATTERN,
 } from './config.js';
 import { WhatsAppChannel } from './channels/whatsapp.js';
@@ -475,9 +477,15 @@ async function main(): Promise<void> {
   };
 
   // Create and connect channels
-  whatsapp = new WhatsAppChannel(channelOpts);
-  channels.push(whatsapp);
-  await whatsapp.connect();
+  // On Railway, only connect WhatsApp if auth exists (channel-agnostic startup)
+  const authDir = path.join(STORE_DIR, 'auth');
+  if (!IS_RAILWAY || fs.existsSync(path.join(authDir, 'creds.json'))) {
+    whatsapp = new WhatsAppChannel(channelOpts);
+    channels.push(whatsapp);
+    await whatsapp.connect();
+  } else {
+    logger.info('No WhatsApp auth found - run /setup to configure a channel');
+  }
 
   // Start subsystems (independently of connection handler)
   startSchedulerLoop({
