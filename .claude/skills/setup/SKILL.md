@@ -152,13 +152,21 @@ This will:
 
 #### 5. Link CLI to the service
 
-After deploy completes, the project is already linked (from `railway init`). But we need to link to the specific service:
+After deploy completes, the project is already linked (from `railway init`). But we need to select the specific service:
 
 ```bash
-railway link
+railway service nanoclaw
 ```
 
-The user selects the NanoClaw service and production environment.
+If that fails, try listing services and selecting by name:
+```bash
+railway service list
+```
+
+Then verify:
+```bash
+railway status 2>&1
+```
 
 **Fallback (if CLI deploy fails):** Guide the user to deploy via the web:
 
@@ -166,25 +174,38 @@ The user selects the NanoClaw service and production environment.
 >
 > Railway will fork the repo to your GitHub account and deploy from that fork. Come back here when done.
 
-Then:
-```bash
-railway link
-```
+Then link to the project (see "Link to existing project" below).
 
 ### Link to existing project
 
+**IMPORTANT:** `railway link` is interactive by default. In non-interactive environments, you MUST provide all flags:
+
+First, get the workspace list:
 ```bash
-railway link
+railway whoami --json 2>&1
 ```
 
-This shows an interactive prompt — the user selects their NanoClaw project, service, and environment.
+Then link with explicit flags:
+```bash
+railway link --workspace "<WORKSPACE_NAME>" --project "NanoClaw"
+```
+
+If the project name is different (e.g., from a template deploy), find it first:
+```bash
+railway list 2>&1
+```
+
+After linking, select the service:
+```bash
+railway service nanoclaw
+```
 
 Verify the link:
 ```bash
-railway status
+railway status 2>&1
 ```
 
-Should show project name, environment (production), and service (NanoClaw).
+Should show project name, environment (production), and service.
 
 ### Ensure local repo matches Railway's fork
 
@@ -269,7 +290,14 @@ Then proceed with the unified flow below. All 4 channels follow the same Phase A
 
 ### 1. Check if already applied
 
-Look for `src/channels/{channel}.ts`. If it exists, skip to Phase A step 6 (verify resilience rules in index.ts and whatsapp.ts).
+Check ALL of these:
+- `src/channels/{channel}.ts` exists
+- `src/index.ts` imports and uses the channel
+- `src/config.ts` exports the token variable(s)
+
+If ALL three are true → the channel is fully wired. **Skip ALL of Phase A** (steps 2–9). Do NOT re-check or modify resilience rules, do NOT re-apply fixes, do NOT rebuild — the code is already correct.
+
+If only the channel file exists but isn't wired into index.ts/config.ts → skip to step 5 (edit config.ts).
 
 ### 2. Copy channel files
 
@@ -443,13 +471,13 @@ In the same block, `onFirstOpen?.()` must be called on Railway so the `connect()
 
 If either fix is missing, apply them.
 
-### 8. Build
+### 8. Install dependencies and build
 
 ```bash
-npm run build
+npm install && npm run build
 ```
 
-Fix any TypeScript errors before proceeding.
+`npm install` is required before build — without it, `tsc` won't be found and the build will fail. Fix any TypeScript errors before proceeding.
 
 ### 9. Commit and push
 
