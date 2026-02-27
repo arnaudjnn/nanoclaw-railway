@@ -146,6 +146,13 @@ function buildVolumeMounts(
       fs.cpSync(srcDir, dstDir, { recursive: true });
     }
   }
+
+  // Sync .mcp.json so agent-runner can discover additional MCP servers
+  const mcpJsonSrc = path.join(process.cwd(), '.mcp.json');
+  if (fs.existsSync(mcpJsonSrc)) {
+    fs.copyFileSync(mcpJsonSrc, path.join(groupSessionsDir, '.mcp.json'));
+  }
+
   mounts.push({
     hostPath: groupSessionsDir,
     containerPath: '/home/node/.claude',
@@ -202,13 +209,40 @@ function buildVolumeMounts(
 }
 
 /**
+ * Collect env var names referenced in .mcp.json (${VAR} syntax)
+ * so they get forwarded as secrets into the container.
+ */
+function collectMcpEnvVars(): string[] {
+  const mcpJsonPath = path.join(process.cwd(), '.mcp.json');
+  if (!fs.existsSync(mcpJsonPath)) return [];
+  try {
+    const config = JSON.parse(fs.readFileSync(mcpJsonPath, 'utf-8'));
+    const envVars: string[] = [];
+    for (const server of Object.values(config.mcpServers || {})) {
+      for (const val of Object.values((server as { env?: Record<string, string> }).env || {})) {
+        const match = (val as string).match(/^\$\{(.+)\}$/);
+        if (match && !envVars.includes(match[1])) envVars.push(match[1]);
+      }
+    }
+    return envVars;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Read allowed secrets from .env for passing to the container via stdin.
  * Secrets are never written to disk or mounted as files.
+ * Includes env vars required by MCP servers from .mcp.json.
  */
 export function readSecrets(): Record<string, string> {
-  const fromFile = readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
+  const coreKeys = ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY'];
+  const mcpEnvKeys = collectMcpEnvVars();
+  const allKeys = [...coreKeys, ...mcpEnvKeys];
+
+  const fromFile = readEnvFile(allKeys);
   // Fallback to process.env for Railway (secrets set as env vars, no .env file)
-  for (const key of ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']) {
+  for (const key of allKeys) {
     if (!fromFile[key] && process.env[key]) fromFile[key] = process.env[key]!;
   }
   return fromFile;

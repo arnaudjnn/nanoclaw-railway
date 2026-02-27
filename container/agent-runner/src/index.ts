@@ -55,6 +55,7 @@ interface SDKUserMessage {
   session_id: string;
 }
 
+const MCP_JSON_PATH = '/home/node/.claude/.mcp.json';
 const IPC_INPUT_DIR = process.env.NANOCLAW_IPC_INPUT || '/workspace/ipc/input';
 const IPC_INPUT_CLOSE_SENTINEL = path.join(IPC_INPUT_DIR, '_close');
 const WORKSPACE_GROUP = process.env.NANOCLAW_WORKSPACE_GROUP || '/workspace/group';
@@ -394,6 +395,29 @@ async function runQuery(
   let messageCount = 0;
   let resultCount = 0;
 
+  // Load additional MCP servers from .mcp.json (synced from host)
+  const extraMcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }> = {};
+  const extraMcpToolPatterns: string[] = [];
+  if (fs.existsSync(MCP_JSON_PATH)) {
+    try {
+      const mcpJson = JSON.parse(fs.readFileSync(MCP_JSON_PATH, 'utf-8'));
+      for (const [name, config] of Object.entries(mcpJson.mcpServers || {})) {
+        const cfg = config as { command: string; args?: string[]; env?: Record<string, string> };
+        const resolvedEnv: Record<string, string> = {};
+        for (const [key, val] of Object.entries(cfg.env || {})) {
+          const match = val.match(/^\$\{(.+)\}$/);
+          if (match && sdkEnv[match[1]]) resolvedEnv[key] = sdkEnv[match[1]]!;
+          else if (!val.startsWith('${')) resolvedEnv[key] = val;
+        }
+        extraMcpServers[name] = { command: cfg.command, args: cfg.args || [], env: resolvedEnv };
+        extraMcpToolPatterns.push(`mcp__${name}__*`);
+        log(`MCP server from .mcp.json: ${name} (${cfg.command})`);
+      }
+    } catch (err) {
+      log(`Failed to read .mcp.json: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   // Load global CLAUDE.md as additional system context (shared across all groups)
   const globalClaudeMdPath = path.join(WORKSPACE_GLOBAL, 'CLAUDE.md');
   let globalClaudeMd: string | undefined;
@@ -435,7 +459,8 @@ async function runQuery(
         'TeamCreate', 'TeamDelete', 'SendMessage',
         'TodoWrite', 'ToolSearch', 'Skill',
         'NotebookEdit',
-        'mcp__nanoclaw__*'
+        'mcp__nanoclaw__*',
+        ...extraMcpToolPatterns,
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -451,6 +476,7 @@ async function runQuery(
             NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
           },
         },
+        ...extraMcpServers,
       },
       hooks: {
         PreCompact: [{ hooks: [createPreCompactHook(containerInput.assistantName)] }],

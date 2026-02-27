@@ -100,6 +100,12 @@ function prepareWorkspace(
     }
   }
 
+  // Sync .mcp.json so agent-runner can discover additional MCP servers
+  const mcpJsonSrc = path.join(process.cwd(), '.mcp.json');
+  if (fs.existsSync(mcpJsonSrc)) {
+    fs.copyFileSync(mcpJsonSrc, path.join(claudeDir, '.mcp.json'));
+  }
+
   // IPC directory
   const ipcDir = resolveGroupIpcPath(group.folder);
   fs.mkdirSync(path.join(ipcDir, 'messages'), { recursive: true });
