@@ -84,7 +84,7 @@ The `registered_groups` table has a UNIQUE constraint on `folder`. Each channel 
 
 ## 1. Railway Project
 
-### Check if already deployed
+### Check Railway CLI
 
 ```bash
 railway --version 2>&1
@@ -95,43 +95,66 @@ If Railway CLI is missing, install it:
 npm i -g @railway/cli
 ```
 
-Then check if already linked to a project:
+### Check if already linked
+
 ```bash
 railway status 2>&1
 ```
 
-If it shows project/environment/service → already deployed, skip to step 2.
+If it shows project/environment/service → already deployed and linked, skip to step 2.
 
-If NOT linked, AskUserQuestion:
+If NOT linked, check if the user is logged in:
+```bash
+railway whoami 2>&1
+```
 
-> Have you already deployed NanoClaw on Railway?
-> - **Yes, I deployed via the Railway template** → proceed to "Link to existing project"
-> - **No, I need to deploy first** → proceed to "Deploy via template"
-
-### Deploy via template
-
-Guide the user:
-
-> 1. Click this link to deploy: **[Deploy on Railway](https://railway.com/deploy/nanoclaw?utm_medium=integration&utm_source=template&utm_campaign=generic)**
-> 2. Railway will ask you to connect your GitHub account (if not already connected)
-> 3. Railway will **fork the repo** to your GitHub account and deploy from that fork
-> 4. Wait for the deploy to complete — you'll see a green checkmark
-> 5. Come back here when done
-
-AskUserQuestion: Have you completed the Railway deployment?
-
-### Link to existing project
-
+If not logged in:
 ```bash
 railway login
 ```
 
-Then link to the project:
+### Deploy or link
+
+AskUserQuestion: Have you already deployed NanoClaw on Railway?
+- **Yes, I already have a Railway project** → proceed to "Link to existing project"
+- **No, I need to deploy** → proceed to "Deploy via CLI"
+
+### Deploy via CLI
+
+Deploy the NanoClaw template directly from the CLI. This creates the Railway project, forks the repo to the user's GitHub, and deploys — all in one command:
+
+```bash
+railway deploy -t nanoclaw
+```
+
+This is interactive — the user will be prompted to select or create a project. Railway will:
+1. Fork the NanoClaw repo to the user's GitHub account
+2. Create a Railway project connected to that fork
+3. Start the initial deployment
+
+After the deploy command completes, link to it:
 ```bash
 railway link
 ```
 
-This will show an interactive prompt — the user selects their NanoClaw project and environment.
+**Fallback (if CLI deploy fails):** Guide the user to deploy via the web:
+
+> Click this link to deploy: **[Deploy on Railway](https://railway.com/deploy/nanoclaw?utm_medium=integration&utm_source=template&utm_campaign=generic)**
+>
+> Railway will fork the repo to your GitHub account and deploy from that fork. Come back here when done.
+
+Then:
+```bash
+railway link
+```
+
+### Link to existing project
+
+```bash
+railway link
+```
+
+This shows an interactive prompt — the user selects their NanoClaw project and environment.
 
 Verify the link:
 ```bash
@@ -140,34 +163,26 @@ railway status
 
 Should show project name, environment (production), and service (NanoClaw).
 
-### Connect Railway to this repo
+### Ensure local repo matches Railway's fork
 
-Railway template creates a fork on the user's GitHub. The local clone should point to that fork. Check the current git remote:
+Railway template creates a fork on the user's GitHub. The local clone must point to that fork so `git push` triggers Railway rebuilds.
 
 ```bash
 git remote get-url origin 2>&1
 ```
 
-Then check what repo Railway is deploying from:
+Get the user's GitHub username:
 ```bash
-railway variables 2>&1 | grep -i repo || echo "Check Railway dashboard for connected repo"
+gh api user --jq '.login' 2>&1
 ```
 
-If the local git remote matches the Railway-connected GitHub repo, everything is good.
-
-If they don't match (e.g., local points to the upstream `qwibitai/NanoClaw` but Railway deployed a fork), update the local remote:
+The local remote should point to the user's fork (e.g., `https://github.com/<USERNAME>/nanoclaw-railway.git` or similar). If it points to the upstream `qwibitai/NanoClaw` instead, update it:
 
 ```bash
-# Get the user's GitHub username
-gh api user --jq '.login'
+git remote set-url origin https://github.com/<USERNAME>/<REPO_NAME>.git
 ```
 
-Then update origin to point to their fork:
-```bash
-git remote set-url origin https://github.com/<USERNAME>/nanoclaw-railway.git
-```
-
-Verify with `git remote -v` and `git push` to confirm access.
+Verify with `git remote -v` and test with `git push --dry-run`.
 
 ## 2. Configure Environment
 
