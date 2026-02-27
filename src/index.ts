@@ -488,7 +488,11 @@ async function main(): Promise<void> {
   ) {
     whatsapp = new WhatsAppChannel(channelOpts);
     channels.push(whatsapp);
-    await whatsapp.connect();
+    try {
+      await whatsapp.connect();
+    } catch (err) {
+      logger.error({ err }, 'WhatsApp failed to connect, continuing with other channels');
+    }
   } else {
     logger.info('No WhatsApp auth found - run /setup to configure a channel');
   }
