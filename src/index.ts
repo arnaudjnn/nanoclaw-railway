@@ -7,10 +7,12 @@ import {
   IS_RAILWAY,
   MAIN_GROUP_FOLDER,
   POLL_INTERVAL,
+  SLACK_BOT_TOKEN,
   STORE_DIR,
   TRIGGER_PATTERN,
 } from './config.js';
 import { WhatsAppChannel } from './channels/whatsapp.js';
+import { SlackChannel } from './channels/slack.js';
 import {
   ContainerOutput,
   runContainerAgent,
@@ -489,6 +491,12 @@ async function main(): Promise<void> {
     await whatsapp.connect();
   } else {
     logger.info('No WhatsApp auth found - run /setup to configure a channel');
+  }
+
+  if (SLACK_BOT_TOKEN) {
+    const slack = new SlackChannel(channelOpts);
+    channels.push(slack);
+    await slack.connect();
   }
 
   // Start subsystems (independently of connection handler)
