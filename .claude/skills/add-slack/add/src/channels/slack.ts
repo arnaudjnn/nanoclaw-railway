@@ -42,11 +42,10 @@ export class SlackChannel implements Channel {
   constructor(opts: SlackChannelOpts) {
     this.opts = opts;
 
-    // Read tokens from .env (not process.env — keeps secrets off the environment
-    // so they don't leak to child processes, matching NanoClaw's security pattern)
+    // Read tokens from .env first, fall back to process.env (Railway sets env vars directly)
     const env = readEnvFile(['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN']);
-    const botToken = env.SLACK_BOT_TOKEN;
-    const appToken = env.SLACK_APP_TOKEN;
+    const botToken = env.SLACK_BOT_TOKEN || process.env.SLACK_BOT_TOKEN;
+    const appToken = env.SLACK_APP_TOKEN || process.env.SLACK_APP_TOKEN;
 
     if (!botToken || !appToken) {
       throw new Error(
@@ -101,7 +100,7 @@ export class SlackChannel implements Channel {
         senderName = ASSISTANT_NAME;
       } else {
         senderName =
-          (await this.resolveUserName(msg.user)) ||
+          (await this.resolveUserName(msg.user ?? '')) ||
           msg.user ||
           'unknown';
       }
