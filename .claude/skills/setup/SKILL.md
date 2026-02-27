@@ -82,22 +82,112 @@ The `registered_groups` table has a UNIQUE constraint on `folder`. Each channel 
 
 ---
 
-## 1. Check Railway CLI
+## 1. Railway Project
 
-- `railway --version` — install if missing (`npm i -g @railway/cli` or `brew install railway`)
-- `railway status` — check if linked to a project. If it shows project/environment/service, it's ready. If not:
-  - `railway login` — authenticate if needed
-  - `railway link` — connect to project
+### Check if already deployed
+
+```bash
+railway --version 2>&1
+```
+
+If Railway CLI is missing, install it:
+```bash
+npm i -g @railway/cli
+```
+
+Then check if already linked to a project:
+```bash
+railway status 2>&1
+```
+
+If it shows project/environment/service → already deployed, skip to step 2.
+
+If NOT linked, AskUserQuestion:
+
+> Have you already deployed NanoClaw on Railway?
+> - **Yes, I deployed via the Railway template** → proceed to "Link to existing project"
+> - **No, I need to deploy first** → proceed to "Deploy via template"
+
+### Deploy via template
+
+Guide the user:
+
+> 1. Click this link to deploy: **[Deploy on Railway](https://railway.com/deploy/nanoclaw?utm_medium=integration&utm_source=template&utm_campaign=generic)**
+> 2. Railway will ask you to connect your GitHub account (if not already connected)
+> 3. Railway will **fork the repo** to your GitHub account and deploy from that fork
+> 4. Wait for the deploy to complete — you'll see a green checkmark
+> 5. Come back here when done
+
+AskUserQuestion: Have you completed the Railway deployment?
+
+### Link to existing project
+
+```bash
+railway login
+```
+
+Then link to the project:
+```bash
+railway link
+```
+
+This will show an interactive prompt — the user selects their NanoClaw project and environment.
+
+Verify the link:
+```bash
+railway status
+```
+
+Should show project name, environment (production), and service (NanoClaw).
+
+### Connect Railway to this repo
+
+Railway template creates a fork on the user's GitHub. The local clone should point to that fork. Check the current git remote:
+
+```bash
+git remote get-url origin 2>&1
+```
+
+Then check what repo Railway is deploying from:
+```bash
+railway variables 2>&1 | grep -i repo || echo "Check Railway dashboard for connected repo"
+```
+
+If the local git remote matches the Railway-connected GitHub repo, everything is good.
+
+If they don't match (e.g., local points to the upstream `qwibitai/NanoClaw` but Railway deployed a fork), update the local remote:
+
+```bash
+# Get the user's GitHub username
+gh api user --jq '.login'
+```
+
+Then update origin to point to their fork:
+```bash
+git remote set-url origin https://github.com/<USERNAME>/nanoclaw-railway.git
+```
+
+Verify with `git remote -v` and `git push` to confirm access.
 
 ## 2. Configure Environment
 
-- AskUserQuestion: Anthropic API key?
-- AskUserQuestion: Bot name? (default: Andy)
-- AskUserQuestion: Timezone? (or detect from system)
-- Set via `railway variable set`:
-  - `ANTHROPIC_API_KEY="..."`
-  - `ASSISTANT_NAME="..."`
-  - `TZ="..."`
+First check what's already configured:
+```bash
+railway variables 2>&1
+```
+
+Check for existing `ANTHROPIC_API_KEY`, `ASSISTANT_NAME`, `TZ`. Only ask for what's missing.
+
+- If `ANTHROPIC_API_KEY` is missing → AskUserQuestion: Anthropic API key?
+- If `ASSISTANT_NAME` is missing → AskUserQuestion: Bot name? (default: Andy)
+- If `TZ` is missing → AskUserQuestion: Timezone? (detect from system with `date +%Z` or default to UTC)
+
+Set missing vars via `railway variable set`:
+```bash
+railway variable set ANTHROPIC_API_KEY="..." ASSISTANT_NAME="..." TZ="..."
+```
+
+Only include the variables that need to be set.
 
 ## 3. Choose Channel
 
