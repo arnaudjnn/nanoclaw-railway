@@ -121,21 +121,44 @@ AskUserQuestion: Have you already deployed NanoClaw on Railway?
 
 ### Deploy via CLI
 
-Deploy the NanoClaw template directly from the CLI. This creates the Railway project, forks the repo to the user's GitHub, and deploys — all in one command:
+#### 1. Get workspace
 
 ```bash
-railway deploy -t nanoclaw
+railway whoami --json 2>&1
 ```
 
-This is interactive — the user will be prompted to select or create a project. Railway will:
+Parse the `workspaces` array from the JSON output. If more than one workspace, AskUserQuestion: Which workspace to deploy to? (list workspace names as options).
+
+#### 2. Collect Anthropic API key
+
+AskUserQuestion: What is your Anthropic API key? (This is the only required variable for deployment)
+
+#### 3. Create project
+
+```bash
+railway init -n "NanoClaw" -w "<WORKSPACE_NAME>"
+```
+
+#### 4. Deploy template
+
+```bash
+railway deploy -t nanoclaw -v "ANTHROPIC_API_KEY=<KEY>"
+```
+
+This will:
 1. Fork the NanoClaw repo to the user's GitHub account
-2. Create a Railway project connected to that fork
+2. Create a Railway service connected to that fork
 3. Start the initial deployment
 
-After the deploy command completes, link to it:
+#### 5. Link CLI to the service
+
+After deploy completes, the project is already linked (from `railway init`). But we need to link to the specific service:
+
 ```bash
 railway link
 ```
+
+The user selects the NanoClaw service and production environment.
 
 **Fallback (if CLI deploy fails):** Guide the user to deploy via the web:
 
@@ -154,7 +177,7 @@ railway link
 railway link
 ```
 
-This shows an interactive prompt — the user selects their NanoClaw project and environment.
+This shows an interactive prompt — the user selects their NanoClaw project, service, and environment.
 
 Verify the link:
 ```bash
