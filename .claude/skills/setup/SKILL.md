@@ -11,9 +11,10 @@ This skill is the single entry point for Railway deployments. It handles everyth
 
 ## 1. Check Railway CLI
 
-- `railway version` — install if missing
-- `railway login` — authenticate if needed
-- `railway link` — connect to project
+- `railway --version` — install if missing (`npm i -g @railway/cli` or `brew install railway`)
+- `railway status` — check if linked to a project. If it shows project/environment/service, it's ready. If not:
+  - `railway login` — authenticate if needed
+  - `railway link` — connect to project
 
 ## 2. Configure Environment
 
