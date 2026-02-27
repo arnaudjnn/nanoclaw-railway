@@ -137,7 +137,7 @@ Then proceed with the unified flow below. All 4 channels follow the same Phase A
 
 ### 1. Check if already applied
 
-Look for `src/channels/{channel}.ts`. If it exists, skip to Phase A step 5 (verify resilience rules).
+Look for `src/channels/{channel}.ts`. If it exists, skip to Phase A step 6 (verify resilience rules in index.ts and whatsapp.ts).
 
 ### 2. Copy channel files
 
@@ -146,13 +146,45 @@ cp .claude/skills/add-{channel}/add/src/channels/{channel}.ts src/channels/
 cp .claude/skills/add-{channel}/add/src/channels/{channel}.test.ts src/channels/
 ```
 
-### 3. Install npm package
+### 3. Apply Railway compatibility fixes to copied files
+
+The upstream skill templates are designed for local `.env`-based setups. After copying, apply these fixes for Railway:
+
+**Slack only — fix token reading (Rule 4):**
+
+In the just-copied `src/channels/slack.ts`, find the constructor's token reading block and add `process.env` fallback:
+
+```typescript
+// BEFORE (upstream template):
+const env = readEnvFile(['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN']);
+const botToken = env.SLACK_BOT_TOKEN;
+const appToken = env.SLACK_APP_TOKEN;
+
+// AFTER (Railway-compatible):
+const env = readEnvFile(['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN']);
+const botToken = env.SLACK_BOT_TOKEN || process.env.SLACK_BOT_TOKEN;
+const appToken = env.SLACK_APP_TOKEN || process.env.SLACK_APP_TOKEN;
+```
+
+Also fix the TypeScript type error on `msg.user` (which is `string | undefined`):
+
+```typescript
+// BEFORE:
+(await this.resolveUserName(msg.user)) ||
+
+// AFTER:
+(await this.resolveUserName(msg.user ?? '')) ||
+```
+
+**Telegram / Discord:** No post-copy fixes needed — they receive tokens as constructor arguments.
+
+### 4. Install npm package
 
 ```bash
 npm install {package}
 ```
 
-### 4. Edit `src/config.ts`
+### 5. Edit `src/config.ts`
 
 Add the token env var(s) to the `readEnvFile()` call and export them.
 
@@ -171,7 +203,7 @@ export const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN || envConfig.SLACK_BO
 export const SLACK_APP_TOKEN = process.env.SLACK_APP_TOKEN || envConfig.SLACK_APP_TOKEN || '';
 ```
 
-### 5. Edit `src/index.ts`
+### 6. Edit `src/index.ts`
 
 Add import and conditional channel creation in `main()`, after the WhatsApp block. **IMPORTANT:** Apply Rule 1 — wrap the WhatsApp connect AND the new channel connect in try/catch.
 
@@ -239,7 +271,7 @@ if (DISCORD_BOT_TOKEN) {
 }
 ```
 
-### 6. Verify WhatsApp resilience (Rules 2 + 3)
+### 7. Verify WhatsApp resilience (Rules 2 + 3)
 
 Read `src/channels/whatsapp.ts` and check the `connection === 'close'` handler:
 
@@ -260,18 +292,6 @@ Find the block where `shouldReconnect` is false. It must NOT call `process.exit(
 In the same block, `onFirstOpen?.()` must be called on Railway so the `connect()` Promise resolves and `main()` can proceed to start other channels.
 
 If either fix is missing, apply them.
-
-### 7. Verify Slack token reading (Rule 4) — Slack only
-
-Read `src/channels/slack.ts` constructor. The token reading must fall back to `process.env`:
-
-```typescript
-const env = readEnvFile(['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN']);
-const botToken = env.SLACK_BOT_TOKEN || process.env.SLACK_BOT_TOKEN;
-const appToken = env.SLACK_APP_TOKEN || process.env.SLACK_APP_TOKEN;
-```
-
-If it only reads from `readEnvFile()`, add the `process.env` fallback.
 
 ### 8. Build
 
