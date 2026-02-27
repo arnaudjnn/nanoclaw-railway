@@ -143,7 +143,10 @@ export class WhatsAppChannel implements Channel {
           });
         } else {
           logger.info('Logged out. Run /setup to re-authenticate.');
-          if (!IS_RAILWAY) {
+          if (IS_RAILWAY) {
+            // Resolve the connect() promise so other channels can start
+            onFirstOpen?.();
+          } else {
             process.exit(0);
           }
         }
