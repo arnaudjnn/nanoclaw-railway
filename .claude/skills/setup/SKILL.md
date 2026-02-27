@@ -23,7 +23,10 @@ In `src/index.ts`, every `await channel.connect()` MUST be wrapped:
 try {
   await channel.connect();
 } catch (err) {
-  logger.error({ err }, '{Channel} failed to connect, continuing with other channels');
+  logger.error(
+    { err },
+    '{Channel} failed to connect, continuing with other channels',
+  );
 }
 ```
 
@@ -49,7 +52,7 @@ Fix: in the logout branch (where `shouldReconnect` is false), also call `onFirst
 
 ```typescript
 if (IS_RAILWAY) {
-  onFirstOpen?.();  // Unblock main() so other channels can start
+  onFirstOpen?.(); // Unblock main() so other channels can start
 }
 ```
 
@@ -69,11 +72,11 @@ Does NOT affect: Telegram, Discord (they receive tokens as constructor arguments
 
 The `registered_groups` table has a UNIQUE constraint on `folder`. Each channel registration MUST use a different folder name:
 
-| Scenario | Folder naming |
-|----------|---------------|
-| First/only channel | `main` |
-| Adding a 2nd channel type | `{channel}-main` (e.g., `slack-main`, `tg-main`, `dc-main`) |
-| Additional groups on same channel | `{channel}-{purpose}` (e.g., `slack-work`, `tg-family`) |
+| Scenario                          | Folder naming                                               |
+| --------------------------------- | ----------------------------------------------------------- |
+| First/only channel                | `main`                                                      |
+| Adding a 2nd channel type         | `{channel}-main` (e.g., `slack-main`, `tg-main`, `dc-main`) |
+| Additional groups on same channel | `{channel}-{purpose}` (e.g., `slack-work`, `tg-family`)     |
 
 **CRITICAL:** Using `INSERT OR REPLACE` with the same folder as an existing group will DELETE the old registration. Always check existing registrations first.
 
@@ -109,6 +112,7 @@ Check for existing tokens (`WHATSAPP_PHONE`, `TELEGRAM_BOT_TOKEN`, `SLACK_BOT_TO
 If channels already exist, ask if the user wants to add another or reconfigure.
 
 AskUserQuestion: Which messaging channel?
+
 - **WhatsApp**
 - **Telegram**
 - **Slack**
@@ -120,12 +124,12 @@ Then proceed with the unified flow below. All 4 channels follow the same Phase A
 
 ## Channel Reference
 
-| Channel | npm package | Already in source? | Token env var(s) | Source file | Constructor |
-|---------|-----------|-------------------|-------------------|-------------|-------------|
-| WhatsApp | `@whiskeysockets/baileys` | **Yes** | `WHATSAPP_PHONE` | `whatsapp.ts` | `new WhatsAppChannel(channelOpts)` |
-| Telegram | `grammy` | No | `TELEGRAM_BOT_TOKEN` | `telegram.ts` | `new TelegramChannel(TOKEN, channelOpts)` |
-| Slack | `@slack/bolt` | No | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` | `slack.ts` | `new SlackChannel(channelOpts)` (reads tokens internally) |
-| Discord | `discord.js` | No | `DISCORD_BOT_TOKEN` | `discord.ts` | `new DiscordChannel(TOKEN, channelOpts)` |
+| Channel  | npm package               | Already in source? | Token env var(s)                     | Source file   | Constructor                                               |
+| -------- | ------------------------- | ------------------ | ------------------------------------ | ------------- | --------------------------------------------------------- |
+| WhatsApp | `@whiskeysockets/baileys` | **Yes**            | `WHATSAPP_PHONE`                     | `whatsapp.ts` | `new WhatsAppChannel(channelOpts)`                        |
+| Telegram | `grammy`                  | No                 | `TELEGRAM_BOT_TOKEN`                 | `telegram.ts` | `new TelegramChannel(TOKEN, channelOpts)`                 |
+| Slack    | `@slack/bolt`             | No                 | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` | `slack.ts`    | `new SlackChannel(channelOpts)` (reads tokens internally) |
+| Discord  | `discord.js`              | No                 | `DISCORD_BOT_TOKEN`                  | `discord.ts`  | `new DiscordChannel(TOKEN, channelOpts)`                  |
 
 ---
 
@@ -189,18 +193,32 @@ npm install {package}
 Add the token env var(s) to the `readEnvFile()` call and export them.
 
 **Telegram:**
+
 ```typescript
-const envConfig = readEnvFile(['ASSISTANT_NAME', 'ASSISTANT_HAS_OWN_NUMBER', 'TELEGRAM_BOT_TOKEN']);
-export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || envConfig.TELEGRAM_BOT_TOKEN || '';
+const envConfig = readEnvFile([
+  'ASSISTANT_NAME',
+  'ASSISTANT_HAS_OWN_NUMBER',
+  'TELEGRAM_BOT_TOKEN',
+]);
+export const TELEGRAM_BOT_TOKEN =
+  process.env.TELEGRAM_BOT_TOKEN || envConfig.TELEGRAM_BOT_TOKEN || '';
 ```
 
 **Discord:** Same pattern with `DISCORD_BOT_TOKEN`.
 
 **Slack:**
+
 ```typescript
-const envConfig = readEnvFile(['ASSISTANT_NAME', 'ASSISTANT_HAS_OWN_NUMBER', 'SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN']);
-export const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN || envConfig.SLACK_BOT_TOKEN || '';
-export const SLACK_APP_TOKEN = process.env.SLACK_APP_TOKEN || envConfig.SLACK_APP_TOKEN || '';
+const envConfig = readEnvFile([
+  'ASSISTANT_NAME',
+  'ASSISTANT_HAS_OWN_NUMBER',
+  'SLACK_BOT_TOKEN',
+  'SLACK_APP_TOKEN',
+]);
+export const SLACK_BOT_TOKEN =
+  process.env.SLACK_BOT_TOKEN || envConfig.SLACK_BOT_TOKEN || '';
+export const SLACK_APP_TOKEN =
+  process.env.SLACK_APP_TOKEN || envConfig.SLACK_APP_TOKEN || '';
 ```
 
 ### 6. Edit `src/index.ts`
@@ -224,6 +242,7 @@ if (...) {
 Then add the new channel AFTER the WhatsApp block:
 
 **Telegram:**
+
 ```typescript
 import { TelegramChannel } from './channels/telegram.js';
 import { ..., TELEGRAM_BOT_TOKEN } from './config.js';
@@ -240,6 +259,7 @@ if (TELEGRAM_BOT_TOKEN) {
 ```
 
 **Slack:**
+
 ```typescript
 import { SlackChannel } from './channels/slack.js';
 import { ..., SLACK_BOT_TOKEN } from './config.js';
@@ -256,6 +276,7 @@ if (SLACK_BOT_TOKEN) {
 ```
 
 **Discord:**
+
 ```typescript
 import { DiscordChannel } from './channels/discord.js';
 import { ..., DISCORD_BOT_TOKEN } from './config.js';
@@ -277,6 +298,7 @@ Read `src/channels/whatsapp.ts` and check the `connection === 'close'` handler:
 
 **Rule 2 — No process.exit on Railway:**
 Find the block where `shouldReconnect` is false. It must NOT call `process.exit()` on Railway:
+
 ```typescript
 } else {
   logger.info('Logged out. Run /setup to re-authenticate.');
@@ -332,6 +354,7 @@ No bot creation needed — WhatsApp uses phone number + pairing code.
 > 3. Copy the bot token (looks like `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`)
 >
 > **Important for group chats**: Disable Group Privacy so the bot can see all messages:
+>
 > 1. In @BotFather, send `/mybots` and select your bot
 > 2. Go to **Bot Settings** > **Group Privacy** > **Turn off**
 
@@ -395,6 +418,7 @@ sleep 90 && railway logs --tail 50
 If the build hasn't finished, wait and retry. Look for "State loaded" with a `groupCount` and channel connection messages.
 
 **WhatsApp (fresh pairing):** Look for `WhatsApp pairing code: XXXXXXXX`. Display it and instruct:
+
 > 1. Open WhatsApp on your phone
 > 2. Go to **Settings > Linked Devices > Link a Device**
 > 3. Tap **Link with phone number instead**
@@ -403,10 +427,12 @@ If the build hasn't finished, wait and retry. Look for "State loaded" with a `gr
 The pairing code expires in ~20s. If expired, redeploy to get a new one.
 
 **WhatsApp (stale auth):** If logs show a 401 error + "Logged out", the auth creds are stale. Clear them:
+
 ```bash
 railway ssh "rm -rf /data/store/auth && echo 'Auth cleared'"
 railway redeploy --yes
 ```
+
 Then wait for the new pairing code.
 
 After linking, check logs for `Connected to WhatsApp`.
@@ -434,6 +460,7 @@ console.log(JSON.stringify(db.prepare('SELECT jid, name, is_group FROM chats ORD
 ```
 
 Also read ASSISTANT_NAME:
+
 ```bash
 railway variables
 ```
@@ -449,6 +476,7 @@ Check existing registrations from step 1.
 ### 3. Guide user to create/join chat and get the ID
 
 **WhatsApp:**
+
 > 1. Open WhatsApp, tap **New Group**
 > 2. Add the bot's phone number (the WHATSAPP_PHONE number) as a participant
 > 3. Name the group the same as the bot name (e.g., "Andy")
@@ -457,6 +485,7 @@ Check existing registrations from step 1.
 WhatsApp needs a redeploy to sync group metadata before we can get the JID:
 
 1. Create group folder first (before redeploy to avoid extra redeploy):
+
    ```bash
    railway ssh "mkdir -p /data/groups/<FOLDER> && cat > /data/groups/<FOLDER>/CLAUDE.md << 'EOF'
    # <ASSISTANT_NAME> — Main Group
@@ -464,6 +493,7 @@ WhatsApp needs a redeploy to sync group metadata before we can get the JID:
    You are <ASSISTANT_NAME>, a personal assistant. Be helpful, concise, and friendly.
    EOF"
    ```
+
 2. Redeploy to trigger group sync:
    ```bash
    railway redeploy --yes
@@ -475,6 +505,7 @@ WhatsApp needs a redeploy to sync group metadata before we can get the JID:
 4. Auto-select the group whose name matches ASSISTANT_NAME. If no match, show the list and AskUserQuestion.
 
 **Telegram:**
+
 > 1. Add the bot to a Telegram group (or open a DM with the bot)
 > 2. Send `/chatid` in the group — the bot will reply with the chat ID
 > 3. The ID format is `tg:123456789` or `tg:-1001234567890`
@@ -482,6 +513,7 @@ WhatsApp needs a redeploy to sync group metadata before we can get the JID:
 AskUserQuestion: What is the chat ID?
 
 **Slack:**
+
 > 1. Add the bot to a Slack channel: right-click channel → **View channel details** → **Integrations** → **Add apps**
 > 2. Get the channel ID from the URL: `https://app.slack.com/client/T.../C0123456789` — the `C...` part
 > 3. The ID format is `slack:C0123456789`
@@ -489,6 +521,7 @@ AskUserQuestion: What is the chat ID?
 AskUserQuestion: What is the channel ID?
 
 **Discord:**
+
 > 1. Enable Developer Mode: **User Settings** > **Advanced** > **Developer Mode**
 > 2. Right-click the text channel → **Copy Channel ID**
 > 3. The ID format is `dc:1234567890123456`
@@ -517,8 +550,9 @@ console.log(JSON.stringify(db.prepare('SELECT * FROM registered_groups').all(), 
 ```
 
 Replace:
+
 - `<JID>` — full prefixed ID (e.g., `slack:C0123456789`, `tg:-1001234567890`, `dc:1234567890123456`, `120363...@g.us`)
-- `<DISPLAY_NAME>` — human-readable name (e.g., "Giorgio Slack")
+- `<DISPLAY_NAME>` — human-readable name (e.g., "Andy")
 - `<FOLDER>` — unique folder name determined in step 2
 - `<ASSISTANT_NAME>` — bot name from env vars
 
@@ -539,9 +573,11 @@ NOTE for WhatsApp: Two redeploys are unavoidable — the first discovers the gro
 ## Phase E: Verify
 
 1. Wait ~15-20s, then check logs:
+
    ```bash
    railway logs --tail 30
    ```
+
    Confirm `groupCount` in the "State loaded" log line matches the expected number of registered groups.
 
 2. Ask the user to send a test message in the registered chat/channel:
@@ -568,21 +604,27 @@ NOTE for WhatsApp: Two redeploys are unavoidable — the first discovers the gro
 ## Troubleshooting
 
 ### Service crashes immediately after deploy
+
 Check `railway logs --tail 50`. Common causes:
+
 - **WhatsApp 401 + process.exit**: Apply Rule 2 (no process.exit on Railway)
 - **Channel constructor throws**: Apply Rule 4 (process.env fallback for tokens)
 - **connect() hangs then times out**: Apply Rule 3 (resolve promise on logout)
 
 ### New channel doesn't start but old channel works
+
 - **connect() blocked**: WhatsApp's connect() Promise never resolved → Apply Rule 3
 - **try/catch missing**: Old channel threw, killed main() → Apply Rule 1
 
 ### Registration disappears after adding new channel
+
 - **Folder UNIQUE conflict**: Both channels used the same folder name → Apply Rule 5, use different folder names
 
 ### WhatsApp shows pairing code but then gets 401
+
 - Stale auth creds exist: `railway ssh "rm -rf /data/store/auth"` then `railway redeploy --yes`
 
 ### Build takes too long / redeploy not picking up changes
+
 - Use `railway up --detach` instead of `railway redeploy --yes` to push local code directly
 - Check if a git-triggered build is already in progress (builds queue, don't overlap)
