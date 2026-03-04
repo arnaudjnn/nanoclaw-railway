@@ -476,12 +476,13 @@ server.tool(
 
 server.tool(
   'manage_mcp_servers',
-  'Manage MCP (Model Context Protocol) servers. Actions: "add" registers a new MCP server (requires name, command, args), "remove" removes a server by name, "list" shows all registered servers. Servers persist across restarts. After adding, use set_env_var to set any required credentials.',
+  'Manage MCP (Model Context Protocol) servers. Actions: "add" registers a new MCP server, "remove" removes a server by name, "list" shows all registered servers. Servers persist across restarts. For "add": provide EITHER a "url" (for remote HTTP/SSE servers — automatically bridged via mcp-remote) OR "command" + "args" (for stdio servers). After adding, use set_env_var to set any required credentials.',
   {
     action: z.enum(['add', 'remove', 'list']).describe('Action to perform'),
     name: z.string().optional().describe('Server name — required for "add" and "remove"'),
-    command: z.string().optional().describe('Command to run the server (e.g., "npx") — required for "add"'),
-    args: z.array(z.string()).optional().describe('Command arguments (e.g., ["-y", "@hubspot/mcp-server"]) — required for "add"'),
+    url: z.string().optional().describe('URL of a remote HTTP/SSE MCP server (e.g., "https://example.com/mcp/..."). Automatically bridged to stdio via mcp-remote. Use this instead of command/args for remote servers.'),
+    command: z.string().optional().describe('Command to run the server (e.g., "npx") — required for "add" when url is not provided'),
+    args: z.array(z.string()).optional().describe('Command arguments (e.g., ["-y", "@hubspot/mcp-server"]) — required for "add" when url is not provided'),
     env: z.record(z.string(), z.string()).optional().describe('Environment variables (e.g., {"HUBSPOT_TOKEN": "${HUBSPOT_TOKEN}"}) — optional for "add"'),
   },
   async (args) => {
@@ -497,9 +498,15 @@ server.tool(
     const pollInterval = 500;
 
     if (args.action === 'add') {
+      // Support url shorthand: auto-wrap with mcp-remote
+      if (args.url) {
+        args.command = 'npx';
+        args.args = ['mcp-remote', args.url];
+      }
+
       if (!args.name || !args.command || !args.args) {
         return {
-          content: [{ type: 'text' as const, text: 'The "name", "command", and "args" parameters are required for the "add" action.' }],
+          content: [{ type: 'text' as const, text: 'For "add": provide "name" and either "url" (for remote HTTP/SSE servers) or "command" + "args" (for stdio servers).' }],
           isError: true,
         };
       }

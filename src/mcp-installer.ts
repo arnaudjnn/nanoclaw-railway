@@ -142,9 +142,57 @@ export function rebuildMcpJson(): void {
 }
 
 /**
+ * Migrate legacy MCP server entries that used custom bridge scripts
+ * to use the standard mcp-remote package instead.
+ */
+function migrateLegacyBridgeEntries(): void {
+  const lock = readLockFile();
+  let changed = false;
+
+  for (const [name, entry] of Object.entries(lock.servers)) {
+    // Detect custom bridge scripts (e.g. n8n-mcp-bridge.js) and convert to mcp-remote
+    const isBridgeScript =
+      entry.command === 'node' &&
+      entry.args.length === 1 &&
+      entry.args[0].includes('mcp-bridge');
+
+    if (!isBridgeScript) continue;
+
+    // Try to extract the URL from the bridge script on disk
+    const scriptPath = entry.args[0];
+    let url: string | undefined;
+    try {
+      if (fs.existsSync(scriptPath)) {
+        const content = fs.readFileSync(scriptPath, 'utf-8');
+        const urlMatch = content.match(
+          /(?:MCP_URL|url)\s*=\s*['"]?(https?:\/\/[^\s'"]+)/,
+        );
+        if (urlMatch) url = urlMatch[1];
+      }
+    } catch {
+      // Can't read script, skip migration
+    }
+
+    if (url) {
+      lock.servers[name] = {
+        command: 'npx',
+        args: ['mcp-remote', url],
+        env: entry.env,
+      };
+      changed = true;
+      logger.info({ name, url }, 'Migrated legacy MCP bridge to mcp-remote');
+    }
+  }
+
+  if (changed) writeLockFile(lock);
+}
+
+/**
  * Sync MCP servers on startup — rebuild .mcp.json from persistent lock file.
  */
 export async function syncMcpOnStartup(): Promise<void> {
+  migrateLegacyBridgeEntries();
+
   const lock = readLockFile();
   if (Object.keys(lock.servers).length === 0) {
     logger.debug('No persistent MCP servers registered, skipping sync');
