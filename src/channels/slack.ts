@@ -37,6 +37,10 @@ export class SlackChannel implements Channel {
   private outgoingQueue: Array<{ jid: string; text: string }> = [];
   private flushing = false;
   private userNameCache = new Map<string, string>();
+  // Track active thread per channel: channelId → thread_ts
+  // When a user posts in a channel, we start a thread on their message.
+  // When a user posts in an existing thread, we reply in that thread.
+  private activeThread = new Map<string, string>();
 
   private opts: SlackChannelOpts;
 
@@ -78,10 +82,6 @@ export class SlackChannel implements Channel {
 
       if (!msg.text) return;
 
-      // Threaded replies are flattened into the channel conversation.
-      // The agent sees them alongside channel-level messages; responses
-      // always go to the channel, not back into the thread.
-
       const jid = `slack:${msg.channel}`;
       const timestamp = new Date(parseFloat(msg.ts) * 1000).toISOString();
       const isGroup = msg.channel_type !== 'im';
@@ -103,6 +103,14 @@ export class SlackChannel implements Channel {
           (msg.user ? await this.resolveUserName(msg.user) : undefined) ||
           msg.user ||
           'unknown';
+      }
+
+      // Track thread context for replies.
+      // If the user message is in a thread, reply in that thread.
+      // If it's a top-level message, start a new thread on it.
+      if (!isBotMessage) {
+        const threadTs = (msg as GenericMessageEvent).thread_ts;
+        this.activeThread.set(msg.channel, threadTs || msg.ts);
       }
 
       // Translate Slack <@UBOTID> mentions into TRIGGER_PATTERN format.
@@ -168,18 +176,28 @@ export class SlackChannel implements Channel {
     }
 
     try {
+      const threadTs = this.activeThread.get(channelId);
+
       // Slack limits messages to ~4000 characters; split if needed
       if (text.length <= MAX_MESSAGE_LENGTH) {
-        await this.app.client.chat.postMessage({ channel: channelId, text });
+        await this.app.client.chat.postMessage({
+          channel: channelId,
+          text,
+          thread_ts: threadTs,
+        });
       } else {
         for (let i = 0; i < text.length; i += MAX_MESSAGE_LENGTH) {
           await this.app.client.chat.postMessage({
             channel: channelId,
             text: text.slice(i, i + MAX_MESSAGE_LENGTH),
+            thread_ts: threadTs,
           });
         }
       }
-      logger.info({ jid, length: text.length }, 'Slack message sent');
+      logger.info(
+        { jid, length: text.length, threadTs },
+        'Slack message sent',
+      );
     } catch (err) {
       this.outgoingQueue.push({ jid, text });
       logger.warn(
