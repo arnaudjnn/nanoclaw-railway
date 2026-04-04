@@ -34,7 +34,7 @@ remove() {
     if [ -d "$target" ]; then
       size=$(du -sk "$target" 2>/dev/null | cut -f1)
     else
-      size=$(wc -c < "$target" 2>/dev/null || echo 0)
+      size=$(stat -f%z "$target" 2>/dev/null || echo 0)
       size=$((size / 1024))
     fi
     TOTAL_FREED=$((TOTAL_FREED + size))
@@ -44,7 +44,7 @@ remove() {
       size=$(du -sk "$target" 2>/dev/null | cut -f1)
       rm -rf "$target"
     else
-      size=$(wc -c < "$target" 2>/dev/null || echo 0)
+      size=$(stat -f%z "$target" 2>/dev/null || echo 0)
       size=$((size / 1024))
       rm -f "$target"
     fi
@@ -95,11 +95,11 @@ done
 for group_dir in "$SESSIONS_DIR"/*/; do
   debug_dir="$group_dir/.claude/debug"
   [ -d "$debug_dir" ] || continue
-  while IFS= read -r -d '' f; do
+  find "$debug_dir" -type f -mtime +3 ! -name "latest" -print0 2>/dev/null | while IFS= read -r -d '' f; do
     fname=$(basename "$f" .txt)
     is_active "$fname" && continue
     remove "$f"
-  done < <(find "$debug_dir" -type f -mtime +3 ! -name "latest" -print0 2>/dev/null)
+  done
 done
 
 # --- Prune todo files (>3 days, skip files named after active sessions) ---
@@ -107,7 +107,7 @@ done
 for group_dir in "$SESSIONS_DIR"/*/; do
   todos_dir="$group_dir/.claude/todos"
   [ -d "$todos_dir" ] || continue
-  while IFS= read -r -d '' f; do
+  find "$todos_dir" -type f -mtime +3 -print0 2>/dev/null | while IFS= read -r -d '' f; do
     fname=$(basename "$f" .json)
     # Todo filenames are like {session_id}-agent-{session_id}.json
     for aid in $ACTIVE_IDS; do
@@ -116,7 +116,7 @@ for group_dir in "$SESSIONS_DIR"/*/; do
       fi
     done
     remove "$f"
-  done < <(find "$todos_dir" -type f -mtime +3 -print0 2>/dev/null)
+  done
 done
 
 # --- Prune telemetry (>7 days, skip files named after active sessions) ---
@@ -124,7 +124,7 @@ done
 for group_dir in "$SESSIONS_DIR"/*/; do
   telem_dir="$group_dir/.claude/telemetry"
   [ -d "$telem_dir" ] || continue
-  while IFS= read -r -d '' f; do
+  find "$telem_dir" -type f -mtime +7 -print0 2>/dev/null | while IFS= read -r -d '' f; do
     fname=$(basename "$f")
     for aid in $ACTIVE_IDS; do
       if [[ "$fname" == *"$aid"* ]]; then
@@ -132,14 +132,14 @@ for group_dir in "$SESSIONS_DIR"/*/; do
       fi
     done
     remove "$f"
-  done < <(find "$telem_dir" -type f -mtime +7 -print0 2>/dev/null)
+  done
 done
 
 # --- Prune group logs (>7 days) ---
 
-while IFS= read -r -d '' f; do
+find "$GROUPS_DIR"/*/logs -type f -mtime +7 -print0 2>/dev/null | while IFS= read -r -d '' f; do
   remove "$f"
-done < <(find "$GROUPS_DIR"/*/logs -type f -mtime +7 -print0 2>/dev/null)
+done
 
 # --- Summary ---
 

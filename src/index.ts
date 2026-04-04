@@ -71,6 +71,7 @@ import {
   shouldDropMessage,
 } from './sender-allowlist.js';
 import { syncMcpOnStartup } from './mcp-installer.js';
+import { startSessionCleanup } from './session-cleanup.js';
 import { syncSkillsOnStartup } from './skill-installer.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
@@ -915,6 +916,7 @@ async function main(): Promise<void> {
       }
     },
   });
+  startSessionCleanup();
   queue.setProcessMessagesFn(processGroupMessages);
   recoverPendingMessages();
   startMessageLoop().catch((err) => {
